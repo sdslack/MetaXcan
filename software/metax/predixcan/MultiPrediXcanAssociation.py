@@ -32,6 +32,9 @@ class MTPF(object):
     MAX_EIGEN=10
     MIN_EIGEN=11
     MIN_EIGEN_KEPT=12
+    # SDS adding additional columns
+    F_STAT=13
+    F_STAT_PVAL=14
 
     K_GENE = "gene"
     K_PVALUE = "pvalue"
@@ -46,9 +49,12 @@ class MTPF(object):
     K_MAX_EIGEN="max_eigen"
     K_MIN_EIGEN = "min_eigen"
     K_MIN_EIGEN_KEPT = "min_eigen_kept"
+    # SDS adding additional columns
+    K_F_STAT="f_stat"
+    K_F_STAT_PVAL="f_stat_pval"
 
     order=[(GENE,K_GENE), (PVALUE, K_PVALUE), (N_MODELS,K_N_MODELS), (N_SAMPLES, K_N_SAMPLES), (BEST_GWAS_P, K_BEST_GWAS_P), (BEST_GWAS_M, K_BEST_GWAS_M), (WORST_GWAS_P, K_WORST_GWAS_P), (WORST_GWAS_M, K_WORST_GWAS_M),
-           (STATUS, K_STATUS), (N_USED, K_N_USED), (MAX_EIGEN,K_MAX_EIGEN), (MIN_EIGEN, K_MIN_EIGEN), (MIN_EIGEN_KEPT,K_MIN_EIGEN_KEPT)]
+           (STATUS, K_STATUS), (N_USED, K_N_USED), (MAX_EIGEN,K_MAX_EIGEN), (MIN_EIGEN, K_MIN_EIGEN), (MIN_EIGEN_KEPT,K_MIN_EIGEN_KEPT), (F_STAT, K_F_STAT), (F_STAT_PVAL, K_F_STAT_PVAL)]
 
 ########################################################################################################################
 class MTPStatus(object):
@@ -159,7 +165,8 @@ def _coefs(result, vt_projection, model_keys):
     return coefs
 
 def multi_predixcan_association(gene_, context, callbacks=None):
-    gene, pvalue, n_models, n_samples, p_i_best, m_i_best, p_i_worst,  m_i_worst, status, n_used, max_eigen, min_eigen, min_eigen_kept = None, None, None, None, None, None, None, None, None, None, None, None, None
+    # SDS adding additional columns
+    gene, pvalue, n_models, n_samples, p_i_best, m_i_best, p_i_worst,  m_i_worst, status, n_used, max_eigen, min_eigen, min_eigen_kept, f_stat, f_stat_pval = None, None, None, None, None, None, None, None, None, None, None, None, None, None, None
     gene = gene_
 
     model_keys, e_ = _acquire(gene_, context)
@@ -172,32 +179,42 @@ def multi_predixcan_association(gene_, context, callbacks=None):
             original_models = model_keys
             vt_projection = None
             variance = None
-
+    
         n_used = len(model_keys)
         y, X = _design_matrices(e_, model_keys, context)
         specifics =  _mode[context.get_mode()]
         model = specifics[K_METHOD](y, X)
         result = specifics[K_FIT](model)
-
+        
+        # SDS temp adding
+        print("SDS adding print statements after model")
+        print(gene)
+        print(result.summary())
+    
         n_samples = e_.shape[0]
-
+    
         p_i_ = _pvalues(result, context)
         p_i_best = p_i_.min()
         m_i_best = p_i_.idxmin()
         p_i_worst = p_i_.max()
         m_i_worst = p_i_.idxmax()
-
+    
         pvalue = specifics[K_PVALUE](result)
         status = specifics[K_STATUS](result)
-
+        
+        # SDS extracting F-statistic and its p-value
+        f_stat = result.fvalue
+        f_stat_pval = result.f_pvalue
+    
         if callbacks:
             coefs = _coefs(result, vt_projection, original_models)
             for callback in callbacks:
                 callback(gene, model, result, vt_projection, variance, original_models, coefs)
     except Exception as ex:
         status = str(ex).replace(" ", "_").replace(",", "_")
-
-    return gene, pvalue, n_models, n_samples, p_i_best, m_i_best, p_i_worst,  m_i_worst, status, n_used, max_eigen, min_eigen, min_eigen_kept
+    
+    # SDS adding additional columns
+    return gene, pvalue, n_models, n_samples, p_i_best, m_i_best, p_i_worst, m_i_worst, status, n_used, max_eigen, min_eigen, min_eigen_kept, f_stat, f_stat_pval
 
 def dataframe_from_results(results, context):
     results = list(zip(*results))
